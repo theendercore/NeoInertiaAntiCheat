@@ -3,9 +3,10 @@ package me.diffusehyperion.inertiaanticheat;
 import com.moandjiezana.toml.Toml;
 import me.diffusehyperion.inertiaanticheat.server.InertiaAntiCheatServer;
 import me.diffusehyperion.inertiaanticheat.util.HashAlgorithm;
-import net.fabricmc.api.ModInitializer;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.network.FriendlyByteBuf;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.loading.FMLLoader;
+
 import javax.crypto.*;
 import java.io.File;
 import java.io.IOException;
@@ -21,10 +22,11 @@ import static me.diffusehyperion.inertiaanticheat.client.InertiaAntiCheatClient.
 import static me.diffusehyperion.inertiaanticheat.server.InertiaAntiCheatServer.serverConfig;
 import static me.diffusehyperion.inertiaanticheat.util.InertiaAntiCheatConstants.MODLOGGER;
 
-public class InertiaAntiCheat implements ModInitializer {
+@Mod(InertiaAntiCheat.MODID)
+public class InertiaAntiCheat {
+    public static final String MODID = "inertiaanticheat";
 
-    @Override
-    public void onInitialize() {
+    public InertiaAntiCheat() {
         info("Initializing InertiaAntiCheat!");
         try {
             Files.createDirectories(getConfigDir());
@@ -36,9 +38,11 @@ public class InertiaAntiCheat implements ModInitializer {
     public static void info(String info) {
         MODLOGGER.info("[InertiaAntiCheat] " + info);
     }
+
     public static void warn(String info) {
         MODLOGGER.warn("[InertiaAntiCheat] " + info);
     }
+
     public static void error(String info) {
         MODLOGGER.error("[InertiaAntiCheat] " + info);
     }
@@ -86,7 +90,7 @@ public class InertiaAntiCheat implements ModInitializer {
                 hashBuilder.insert(0, "0");
             }
             return hashBuilder.toString();
-        } catch (NoSuchAlgorithmException e){
+        } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Invalid algorithm provided! Please report this on this project's Github!", e);
         }
     }
@@ -126,7 +130,7 @@ public class InertiaAntiCheat implements ModInitializer {
     }
 
     public static Path getConfigDir() {
-        return FabricLoader.getInstance().getConfigDir().resolve("InertiaAntiCheat");
+        return FMLLoader.getGamePath().resolve("config").resolve("InertiaAntiCheat");
     }
 
     public static PublicKey retrievePublicKey(FriendlyByteBuf packetByteBuf) {

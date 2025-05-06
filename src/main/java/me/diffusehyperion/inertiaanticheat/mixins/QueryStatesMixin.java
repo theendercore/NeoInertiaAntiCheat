@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(StatusProtocols.class)
 public class QueryStatesMixin {
 
-    @Inject(method = "method_56029", at = @At(value = "TAIL"))
+    @Inject(method = "lambda$static$2", at = @At(value = "TAIL"))
     private static void registerClientbound(ProtocolInfoBuilder builder, CallbackInfo ci) {
         builder.addPacket(AnticheatPackets.DETAILS_RESPONSE, AnticheatDetailsS2CPacket.CODEC);
     }

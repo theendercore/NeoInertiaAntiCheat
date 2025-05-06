@@ -5,16 +5,17 @@ import me.diffusehyperion.inertiaanticheat.InertiaAntiCheat;
 import me.diffusehyperion.inertiaanticheat.util.HashAlgorithm;
 import me.diffusehyperion.inertiaanticheat.util.InertiaAntiCheatConstants;
 import me.diffusehyperion.inertiaanticheat.util.ModlistCheckMethod;
-import net.fabricmc.api.DedicatedServerModInitializer;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.common.Mod;
 
-public class InertiaAntiCheatServer implements DedicatedServerModInitializer {
+@Mod(value = InertiaAntiCheat.MODID, dist = Dist.DEDICATED_SERVER)
+public class InertiaAntiCheatServer {
 
     public static Toml serverConfig;
     public static ModlistCheckMethod modlistCheckMethod;
     public static HashAlgorithm hashAlgorithm;
 
-    @Override
-    public void onInitializeServer() {
+    public InertiaAntiCheatServer() {
         InertiaAntiCheatServer.serverConfig = InertiaAntiCheat.initializeConfig("/config/server/InertiaAntiCheat.toml", InertiaAntiCheatConstants.CURRENT_SERVER_CONFIG_VERSION);
 
         switch (InertiaAntiCheatServer.serverConfig.getString("mods.method").toLowerCase()) {
