@@ -2,27 +2,27 @@ package me.diffusehyperion.inertiaanticheat.mixins.server;
 
 import com.mojang.authlib.GameProfile;
 import me.diffusehyperion.inertiaanticheat.interfaces.ServerLoginNetworkHandlerInterface;
-import net.minecraft.network.ClientConnection;
-import net.minecraft.server.network.ServerLoginNetworkHandler;
+import net.minecraft.network.Connection;
+import net.minecraft.server.network.ServerLoginPacketListenerImpl;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 
-@Mixin(ServerLoginNetworkHandler.class)
+@Mixin(ServerLoginPacketListenerImpl.class)
 public abstract class ServerLoginNetworkHandlerMixin implements ServerLoginNetworkHandlerInterface {
     @Shadow @Final
-    ClientConnection connection;
+    Connection connection;
 
-    @Shadow private @Nullable GameProfile profile;
+    @Shadow private @Nullable GameProfile authenticatedProfile;
 
     @Override
-    public ClientConnection inertiaAntiCheat$getConnection() {
+    public Connection inertiaAntiCheat$getConnection() {
         return this.connection;
     }
 
     @Override
     public GameProfile inertiaAntiCheat$getGameProfile() {
-        return this.profile;
+        return this.authenticatedProfile;
     }
 }

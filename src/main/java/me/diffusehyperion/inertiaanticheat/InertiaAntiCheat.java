@@ -5,8 +5,7 @@ import me.diffusehyperion.inertiaanticheat.server.InertiaAntiCheatServer;
 import me.diffusehyperion.inertiaanticheat.util.HashAlgorithm;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.network.PacketByteBuf;
-
+import net.minecraft.network.FriendlyByteBuf;
 import javax.crypto.*;
 import java.io.File;
 import java.io.IOException;
@@ -130,7 +129,7 @@ public class InertiaAntiCheat implements ModInitializer {
         return FabricLoader.getInstance().getConfigDir().resolve("InertiaAntiCheat");
     }
 
-    public static PublicKey retrievePublicKey(PacketByteBuf packetByteBuf) {
+    public static PublicKey retrievePublicKey(FriendlyByteBuf packetByteBuf) {
         byte[] rawPublicKeyBytes = new byte[packetByteBuf.readableBytes()];
         packetByteBuf.readBytes(rawPublicKeyBytes);
         X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(rawPublicKeyBytes);

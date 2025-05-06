@@ -2,12 +2,12 @@ package me.diffusehyperion.inertiaanticheat.mixins.client;
 
 import me.diffusehyperion.inertiaanticheat.interfaces.ServerInfoInterface;
 import me.diffusehyperion.inertiaanticheat.util.AnticheatDetails;
-import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.multiplayer.ServerData;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
-@Mixin(ServerInfo.class)
+@Mixin(ServerData.class)
 public abstract class ServerInfoMixin implements ServerInfoInterface {
     @Unique
     @Nullable

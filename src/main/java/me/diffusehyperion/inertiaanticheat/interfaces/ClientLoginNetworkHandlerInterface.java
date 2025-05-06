@@ -1,7 +1,7 @@
 package me.diffusehyperion.inertiaanticheat.interfaces;
 
-import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.multiplayer.ServerData;
 
 public interface ClientLoginNetworkHandlerInterface {
-    ServerInfo inertiaAntiCheat$getServerInfo();
+    ServerData inertiaAntiCheat$getServerInfo();
 }

@@ -6,12 +6,11 @@ import me.diffusehyperion.inertiaanticheat.util.HashAlgorithm;
 import me.diffusehyperion.inertiaanticheat.util.InertiaAntiCheatConstants;
 import net.fabricmc.fabric.api.client.networking.v1.ClientLoginConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientLoginNetworking;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientLoginNetworkHandler;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.PacketCallbacks;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientHandshakePacketListenerImpl;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.PacketSendListener;
+import net.minecraft.resources.ResourceLocation;
 import javax.crypto.SecretKey;
 import java.math.BigInteger;
 import java.security.PublicKey;
@@ -26,7 +25,7 @@ public class ClientLoginModlistTransferHandler {
         ClientLoginNetworking.registerGlobalReceiver(InertiaAntiCheatConstants.MOD_TRANSFER_START_ID, ClientLoginModlistTransferHandler::startModTransfer);
     }
 
-    private static CompletableFuture<PacketByteBuf> startModTransfer(MinecraftClient client, ClientLoginNetworkHandler loginNetworkHandler, PacketByteBuf buf, Consumer<PacketCallbacks> callbacksConsumer) {
+    private static CompletableFuture<FriendlyByteBuf> startModTransfer(Minecraft client, ClientHandshakePacketListenerImpl loginNetworkHandler, FriendlyByteBuf buf, Consumer<PacketSendListener> callbacksConsumer) {
         InertiaAntiCheat.debugLine();
         InertiaAntiCheat.debugInfo("Received request to start mod transfer");
 
@@ -36,7 +35,7 @@ public class ClientLoginModlistTransferHandler {
         ClientLoginNetworking.registerReceiver(InertiaAntiCheatConstants.MOD_TRANSFER_CONTINUE_ID, handler::transferMod);
         InertiaAntiCheat.debugInfo("Registered new handler for channel");
 
-        PacketByteBuf responseBuf =  new PacketByteBuf(Unpooled.buffer());
+        FriendlyByteBuf responseBuf =  new FriendlyByteBuf(Unpooled.buffer());
         responseBuf.writeBytes(InertiaAntiCheat.encryptRSABytes(BigInteger.valueOf(InertiaAntiCheatClient.allModData.size()).toByteArray(), publicKey));
         InertiaAntiCheat.debugInfo("Responding with mod size of " + InertiaAntiCheatClient.allModData.size());
         InertiaAntiCheat.debugLine();
@@ -46,7 +45,7 @@ public class ClientLoginModlistTransferHandler {
 
     private final PublicKey publicKey;
     private final SecretKey secretKey;
-    private final Identifier modTransferID;
+    private final ResourceLocation modTransferID;
 
     private final int maxIndex;
     private int currentIndex = 0;
@@ -54,7 +53,7 @@ public class ClientLoginModlistTransferHandler {
     private byte[] currentFile;
 
 
-    public ClientLoginModlistTransferHandler(PublicKey publicKey, int maxIndex, Identifier modTransferID) {
+    public ClientLoginModlistTransferHandler(PublicKey publicKey, int maxIndex, ResourceLocation modTransferID) {
         this.publicKey = publicKey;
         this.secretKey = InertiaAntiCheat.createAESKey();
         this.modTransferID = modTransferID;
@@ -65,17 +64,17 @@ public class ClientLoginModlistTransferHandler {
         ClientLoginConnectionEvents.DISCONNECT.register(this::onDisconnect);
     }
 
-    private void onDisconnect(ClientLoginNetworkHandler clientLoginNetworkHandler, MinecraftClient minecraftClient) {
+    private void onDisconnect(ClientHandshakePacketListenerImpl clientLoginNetworkHandler, Minecraft minecraftClient) {
         ClientLoginNetworking.unregisterReceiver(this.modTransferID);
     }
 
 
-    private CompletableFuture<PacketByteBuf> transferMod(MinecraftClient client, ClientLoginNetworkHandler handler, PacketByteBuf buf, Consumer<PacketCallbacks> callbacksConsumer) {
+    private CompletableFuture<FriendlyByteBuf> transferMod(Minecraft client, ClientHandshakePacketListenerImpl handler, FriendlyByteBuf buf, Consumer<PacketSendListener> callbacksConsumer) {
         InertiaAntiCheat.debugInfo("Sending mod " + this.currentIndex);
         if (this.currentIndex + 1 >= this.maxIndex && Objects.isNull(this.currentFile)) {
             throw new RuntimeException("Not expected to send anymore mods");
         }
-        PacketByteBuf responseBuf =  new PacketByteBuf(Unpooled.buffer());
+        FriendlyByteBuf responseBuf =  new FriendlyByteBuf(Unpooled.buffer());
 
         if (this.currentFile.length > MAX_SIZE) {
             InertiaAntiCheat.debugInfo("Sending part of next file");

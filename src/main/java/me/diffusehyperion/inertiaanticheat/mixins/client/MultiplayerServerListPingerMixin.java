@@ -6,13 +6,13 @@ import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 import me.diffusehyperion.inertiaanticheat.interfaces.ClientConnectionMixinInterface;
 import me.diffusehyperion.inertiaanticheat.interfaces.ServerInfoInterface;
 import me.diffusehyperion.inertiaanticheat.packets.UpgradedClientQueryPacketListener;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.ServerStatusPinger;
+import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.status.ClientStatusPacketListener;
 import me.diffusehyperion.inertiaanticheat.packets.UpgradedClientQueryNetworkHandler;
-import net.minecraft.client.network.MultiplayerServerListPinger;
-import net.minecraft.client.network.ServerAddress;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.network.ClientConnection;
-import net.minecraft.network.listener.ClientQueryPacketListener;
-import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Debug;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -23,18 +23,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.net.InetSocketAddress;
 
-@Debug(export = true)
-@Mixin(MultiplayerServerListPinger.class)
+@Mixin(ServerStatusPinger.class)
 public abstract class MultiplayerServerListPingerMixin {
     @Shadow
-    void showError(Text error, ServerInfo info) {}
+    void onPingFailed(Component error, ServerData info) {}
     @Shadow
-    void ping(InetSocketAddress socketAddress, final ServerAddress address, final ServerInfo serverInfo) {}
+    void pingLegacyServer(InetSocketAddress socketAddress, final ServerAddress address, final ServerData serverInfo) {}
 
-    @Inject(method = "add",
+    @Inject(method = "pingServer",
             at = @At(value = "HEAD"))
-    private void pingServer(ServerInfo entry, Runnable saver, Runnable pingCallback, CallbackInfo ci,
-                            @Share("serverInfo") LocalRef<ServerInfo> serverDataLocalRef,
+    private void pingServer(ServerData entry, Runnable saver, Runnable pingCallback, CallbackInfo ci,
+                            @Share("serverInfo") LocalRef<ServerData> serverDataLocalRef,
                             @Share("saver") LocalRef<Runnable> saverLocalRef,
                             @Share("pingCallback") LocalRef<Runnable> pingCallbackLocalRef) {
         serverDataLocalRef.set(entry);
@@ -42,25 +41,25 @@ public abstract class MultiplayerServerListPingerMixin {
         pingCallbackLocalRef.set(pingCallback);
     }
 
-    @Redirect(method = "add",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/network/ClientConnection;connect(Ljava/lang/String;ILnet/minecraft/network/listener/ClientQueryPacketListener;)V"))
+    @Redirect(method = "pingServer",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/network/Connection;initiateServerboundStatusConnection(Ljava/lang/String;ILnet/minecraft/network/protocol/status/ClientStatusPacketListener;)V"))
     private void initiateServerboundUpgradedStatusConnection(
-            ClientConnection connection, String host, int port, ClientQueryPacketListener clientQueryPacketListener,
-            @Share("serverInfo") LocalRef<ServerInfo> serverDataLocalRef,
+            Connection connection, String host, int port, ClientStatusPacketListener clientQueryPacketListener,
+            @Share("serverInfo") LocalRef<ServerData> serverDataLocalRef,
             @Share("saver") LocalRef<Runnable> runnableLocalRef,
             @Share("pingCallback") LocalRef<Runnable> pingCallbackLocalRef,
             @Local InetSocketAddress inetSocketAddress,
             @Local ServerAddress serverAddress) {
 
-        ServerInfo serverInfo = serverDataLocalRef.get();
+        ServerData serverInfo = serverDataLocalRef.get();
         Runnable saver = runnableLocalRef.get();
         Runnable pingCallback = pingCallbackLocalRef.get();
 
         UpgradedClientQueryPacketListener listener =
                 new UpgradedClientQueryNetworkHandler(serverInfo, saver, pingCallback,
                         connection, inetSocketAddress, serverAddress,
-                this::showError,
-                this::ping);
+                this::onPingFailed,
+                this::pingLegacyServer);
 
         ((ServerInfoInterface) serverInfo).inertiaAntiCheat$setInertiaInstalled(null);
         ((ServerInfoInterface) serverInfo).inertiaAntiCheat$setAnticheatDetails(null);

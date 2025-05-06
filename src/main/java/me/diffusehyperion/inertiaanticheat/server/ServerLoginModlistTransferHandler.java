@@ -7,11 +7,11 @@ import me.diffusehyperion.inertiaanticheat.util.InertiaAntiCheatConstants;
 import me.diffusehyperion.inertiaanticheat.util.ModlistCheckMethod;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.fabric.api.networking.v1.*;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerLoginNetworkHandler;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.server.network.ServerLoginPacketListenerImpl;
 import org.apache.commons.lang3.ArrayUtils;
 
 import javax.crypto.SecretKey;
@@ -28,7 +28,7 @@ public class ServerLoginModlistTransferHandler {
         ServerLoginConnectionEvents.QUERY_START.register(ServerLoginModlistTransferHandler::requestModTransfer);
     }
 
-    private static void requestModTransfer(ServerLoginNetworkHandler handler, MinecraftServer minecraftServer, LoginPacketSender sender, ServerLoginNetworking.LoginSynchronizer synchronizer) {
+    private static void requestModTransfer(ServerLoginPacketListenerImpl handler, MinecraftServer minecraftServer, LoginPacketSender sender, ServerLoginNetworking.LoginSynchronizer synchronizer) {
         ServerLoginNetworkHandlerInterface upgradedHandler = (ServerLoginNetworkHandlerInterface) handler;
 
         InertiaAntiCheat.debugLine();
@@ -39,10 +39,10 @@ public class ServerLoginModlistTransferHandler {
             InertiaAntiCheat.debugLine();
             return;
         }
-        InertiaAntiCheat.debugInfo("Not allowed to bypass, sending request to address " + upgradedHandler.inertiaAntiCheat$getConnection().getAddress());
+        InertiaAntiCheat.debugInfo("Not allowed to bypass, sending request to address " + upgradedHandler.inertiaAntiCheat$getConnection().getRemoteAddress());
 
         KeyPair keyPair = InertiaAntiCheat.createRSAPair();
-        PacketByteBuf response = PacketByteBufs.create();
+        FriendlyByteBuf response = PacketByteBufs.create();
         response.writeBytes(keyPair.getPublic().getEncoded());
 
         ServerLoginModlistTransferHandler transferHandler = new ServerLoginModlistTransferHandler(keyPair, InertiaAntiCheatConstants.MOD_TRANSFER_CONTINUE_ID);
@@ -54,7 +54,7 @@ public class ServerLoginModlistTransferHandler {
     }
 
     private final KeyPair keyPair;
-    private final Identifier modTransferID;
+    private final ResourceLocation modTransferID;
 
     private int maxIndex;
     private int currentIndex = 0;
@@ -63,18 +63,18 @@ public class ServerLoginModlistTransferHandler {
 
     private final CompletableFuture<Void> future = new CompletableFuture<>();
 
-    public ServerLoginModlistTransferHandler(KeyPair keyPair, Identifier modTransferID) {
+    public ServerLoginModlistTransferHandler(KeyPair keyPair, ResourceLocation modTransferID) {
         this.keyPair = keyPair;
         this.modTransferID = modTransferID;
     }
 
-    protected void startModTransfer(MinecraftServer minecraftServer, ServerLoginNetworkHandler serverLoginNetworkHandler, boolean b, PacketByteBuf packetByteBuf, ServerLoginNetworking.LoginSynchronizer synchronizer, PacketSender packetSender) {
+    protected void startModTransfer(MinecraftServer minecraftServer, ServerLoginPacketListenerImpl serverLoginNetworkHandler, boolean b, FriendlyByteBuf packetByteBuf, ServerLoginNetworking.LoginSynchronizer synchronizer, PacketSender packetSender) {
         ServerLoginNetworkHandlerInterface upgradedHandler = (ServerLoginNetworkHandlerInterface) serverLoginNetworkHandler;
         LoginPacketSender sender = (LoginPacketSender) packetSender; // im 75% sure they forgot to change PacketSender to LoginPacketSender lmao
 
-        InertiaAntiCheat.debugInfo("Received response from address " + upgradedHandler.inertiaAntiCheat$getConnection().getAddress());
+        InertiaAntiCheat.debugInfo("Received response from address " + upgradedHandler.inertiaAntiCheat$getConnection().getRemoteAddress());
         if (!b) {
-            serverLoginNetworkHandler.disconnect(Text.of(InertiaAntiCheatServer.serverConfig.getString("mods.vanillaKickMessage")));
+            serverLoginNetworkHandler.disconnect(Component.nullToEmpty(InertiaAntiCheatServer.serverConfig.getString("mods.vanillaKickMessage")));
             return;
         }
 
@@ -92,11 +92,11 @@ public class ServerLoginModlistTransferHandler {
         InertiaAntiCheat.debugLine();
     }
 
-    private void continueModTransfer(MinecraftServer minecraftServer, ServerLoginNetworkHandler serverLoginNetworkHandler, boolean b, PacketByteBuf packetByteBuf, ServerLoginNetworking.LoginSynchronizer loginSynchronizer, PacketSender packetSender) {
+    private void continueModTransfer(MinecraftServer minecraftServer, ServerLoginPacketListenerImpl serverLoginNetworkHandler, boolean b, FriendlyByteBuf packetByteBuf, ServerLoginNetworking.LoginSynchronizer loginSynchronizer, PacketSender packetSender) {
         LoginPacketSender sender = (LoginPacketSender) packetSender; // im 75% sure they forgot to change PacketSender to LoginPacketSender lmao
         InertiaAntiCheat.debugInfo("Receiving mod " + this.currentIndex);
         if (!b) {
-            serverLoginNetworkHandler.disconnect(Text.of(InertiaAntiCheatServer.serverConfig.getString("mods.vanillaKickMessage")));
+            serverLoginNetworkHandler.disconnect(Component.nullToEmpty(InertiaAntiCheatServer.serverConfig.getString("mods.vanillaKickMessage")));
             return;
         }
 
@@ -127,7 +127,7 @@ public class ServerLoginModlistTransferHandler {
         if (this.currentIndex >= this.maxIndex) {
             InertiaAntiCheat.debugInfo("Finishing transfer, checking mods now");
             if (!checkModlist(this.collectedMods)) {
-                serverLoginNetworkHandler.disconnect(Text.of(InertiaAntiCheatServer.serverConfig.getString("mods.deniedKickMessage")));
+                serverLoginNetworkHandler.disconnect(Component.nullToEmpty(InertiaAntiCheatServer.serverConfig.getString("mods.deniedKickMessage")));
             }
             ServerLoginNetworking.unregisterReceiver(serverLoginNetworkHandler, this.modTransferID);
             this.future.complete(null);

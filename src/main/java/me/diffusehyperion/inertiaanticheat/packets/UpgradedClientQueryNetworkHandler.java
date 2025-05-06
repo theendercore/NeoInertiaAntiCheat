@@ -3,18 +3,18 @@ package me.diffusehyperion.inertiaanticheat.packets;
 import com.mojang.authlib.GameProfile;
 import me.diffusehyperion.inertiaanticheat.interfaces.ServerInfoInterface;
 import me.diffusehyperion.inertiaanticheat.packets.S2C.AnticheatDetailsS2CPacket;
-import net.minecraft.client.network.MultiplayerServerListPinger;
-import net.minecraft.client.network.ServerAddress;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.network.ClientConnection;
-import net.minecraft.network.DisconnectionInfo;
-import net.minecraft.network.packet.c2s.query.QueryPingC2SPacket;
-import net.minecraft.network.packet.s2c.query.PingResultS2CPacket;
-import net.minecraft.network.packet.s2c.query.QueryResponseS2CPacket;
-import net.minecraft.server.ServerMetadata;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Util;
+import net.minecraft.ChatFormatting;
+import net.minecraft.Util;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.ServerStatusPinger;
+import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.network.Connection;
+import net.minecraft.network.DisconnectionDetails;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.ping.ClientboundPongResponsePacket;
+import net.minecraft.network.protocol.ping.ServerboundPingRequestPacket;
+import net.minecraft.network.protocol.status.ClientboundStatusResponsePacket;
+import net.minecraft.network.protocol.status.ServerStatus;
 import org.apache.logging.log4j.util.TriConsumer;
 
 import java.net.InetSocketAddress;
@@ -26,26 +26,26 @@ import java.util.function.BiConsumer;
 public class UpgradedClientQueryNetworkHandler implements UpgradedClientQueryPacketListener {
     /* ---------- vanilla fields ----------*/
 
-    private final ServerInfo serverInfo;
+    private final ServerData serverInfo;
     private final Runnable saver;
     private final Runnable pingCallback;
 
-    private final ClientConnection connection;
+    private final Connection connection;
 
     private final InetSocketAddress inetSocketAddress;
     private final ServerAddress serverAddress;
 
-    private final BiConsumer<Text, ServerInfo> showErrorMethod;
-    private final TriConsumer<InetSocketAddress, ServerAddress, ServerInfo> pingMethod;
+    private final BiConsumer<Component, ServerData> showErrorMethod;
+    private final TriConsumer<InetSocketAddress, ServerAddress, ServerData> pingMethod;
 
     private boolean sentQuery;
     private boolean received;
     private long startTime;
 
-    public UpgradedClientQueryNetworkHandler(ServerInfo serverInfo, Runnable saver, Runnable pingCallback, ClientConnection connection,
+    public UpgradedClientQueryNetworkHandler(ServerData serverInfo, Runnable saver, Runnable pingCallback, Connection connection,
                                              InetSocketAddress inetSocketAddress, ServerAddress serverAddress,
-                                             BiConsumer<Text, ServerInfo> showErrorMethod,
-                                             TriConsumer<InetSocketAddress, ServerAddress, ServerInfo> pingMethod) {
+                                             BiConsumer<Component, ServerData> showErrorMethod,
+                                             TriConsumer<InetSocketAddress, ServerAddress, ServerData> pingMethod) {
         /* ---------- vanilla fields ----------*/
 
         this.serverInfo = serverInfo;
@@ -72,59 +72,59 @@ public class UpgradedClientQueryNetworkHandler implements UpgradedClientQueryPac
     /* ---------- (Mostly) vanilla stuff below ----------*/
 
     @Override
-    public void onResponse(QueryResponseS2CPacket packet) {
+    public void handleStatusResponse(ClientboundStatusResponsePacket packet) {
         if (this.received) {
-            connection.disconnect(Text.translatable("multiplayer.status.unrequested"));
+            connection.disconnect(Component.translatable("multiplayer.status.unrequested"));
             return;
         }
         this.received = true;
-        ServerMetadata serverMetadata = packet.metadata();
-        serverInfo.label = serverMetadata.description();
+        ServerStatus serverMetadata = packet.status();
+        serverInfo.motd = serverMetadata.description();
         serverMetadata.version().ifPresentOrElse(version -> {
-            serverInfo.version = Text.literal(version.gameVersion());
-            serverInfo.protocolVersion = version.protocolVersion();
+            serverInfo.version = Component.literal(version.name());
+            serverInfo.protocol = version.protocol();
         }, () -> {
-            serverInfo.version = Text.translatable("multiplayer.status.old");
-            serverInfo.protocolVersion = 0;
+            serverInfo.version = Component.translatable("multiplayer.status.old");
+            serverInfo.protocol = 0;
         });
         serverMetadata.players().ifPresentOrElse(players -> {
-            serverInfo.playerCountLabel = MultiplayerServerListPinger.createPlayerCountText(players.online(), players.max());
+            serverInfo.status = ServerStatusPinger.formatPlayerCount(players.online(), players.max());
             serverInfo.players = players;
             if (!players.sample().isEmpty()) {
-                ArrayList<Text> list = new ArrayList<>(players.sample().size());
+                ArrayList<Component> list = new ArrayList<>(players.sample().size());
                 for (GameProfile gameProfile : players.sample()) {
-                    list.add(Text.literal(gameProfile.getName()));
+                    list.add(Component.literal(gameProfile.getName()));
                 }
                 if (players.sample().size() < players.online()) {
-                    list.add(Text.translatable("multiplayer.status.and_more", players.online() - players.sample().size()));
+                    list.add(Component.translatable("multiplayer.status.and_more", players.online() - players.sample().size()));
                 }
-                serverInfo.playerListSummary = list;
+                serverInfo.playerList = list;
             } else {
-                serverInfo.playerListSummary = List.of();
+                serverInfo.playerList = List.of();
             }
-        }, () -> serverInfo.playerCountLabel = Text.translatable("multiplayer.status.unknown").formatted(Formatting.DARK_GRAY));
+        }, () -> serverInfo.status = Component.translatable("multiplayer.status.unknown").withStyle(ChatFormatting.DARK_GRAY));
         serverMetadata.favicon().ifPresent(favicon -> {
-            if (!Arrays.equals(favicon.iconBytes(), serverInfo.getFavicon())) {
-                serverInfo.setFavicon(ServerInfo.validateFavicon(favicon.iconBytes()));
+            if (!Arrays.equals(favicon.iconBytes(), serverInfo.getIconBytes())) {
+                serverInfo.setIconBytes(ServerData.validateIcon(favicon.iconBytes()));
                 saver.run();
             }
         });
-        this.startTime = Util.getMeasuringTimeMs();
-        this.connection.send(new QueryPingC2SPacket(this.startTime));
+        this.startTime = Util.getMillis();
+        this.connection.send(new ServerboundPingRequestPacket(this.startTime));
         this.sentQuery = true;
     }
 
     @Override
-    public void onPingResult(PingResultS2CPacket packet) {
+    public void handlePongResponse(ClientboundPongResponsePacket packet) {
         long l = this.startTime;
-        long m = Util.getMeasuringTimeMs();
+        long m = Util.getMillis();
         serverInfo.ping = m - l;
-        this.connection.disconnect(Text.translatable("multiplayer.status.finished"));
+        this.connection.disconnect(Component.translatable("multiplayer.status.finished"));
         this.pingCallback.run();
     }
 
     @Override
-    public void onDisconnected(DisconnectionInfo info) {
+    public void onDisconnect(DisconnectionDetails info) {
         if (!this.sentQuery) {
             showErrorMethod.accept(info.reason(), serverInfo);
             pingMethod.accept(inetSocketAddress, serverAddress, serverInfo);
@@ -132,7 +132,7 @@ public class UpgradedClientQueryNetworkHandler implements UpgradedClientQueryPac
     }
 
     @Override
-    public boolean isConnectionOpen() {
-        return this.connection.isOpen();
+    public boolean isAcceptingMessages() {
+        return this.connection.isConnected();
     }
 }
