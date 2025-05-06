@@ -1,13 +1,11 @@
 package me.diffusehyperion.inertiaanticheat.client;
 
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.buffer.Unpooled;
 import me.diffusehyperion.inertiaanticheat.InertiaAntiCheat;
 import me.diffusehyperion.inertiaanticheat.util.HashAlgorithm;
 import me.diffusehyperion.inertiaanticheat.util.InertiaAntiCheatConstants;
 import net.fabricmc.fabric.api.client.networking.v1.ClientLoginConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientLoginNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientLoginNetworkHandler;
 import net.minecraft.network.PacketByteBuf;
@@ -38,7 +36,7 @@ public class ClientLoginModlistTransferHandler {
         ClientLoginNetworking.registerReceiver(InertiaAntiCheatConstants.MOD_TRANSFER_CONTINUE_ID, handler::transferMod);
         InertiaAntiCheat.debugInfo("Registered new handler for channel");
 
-        PacketByteBuf responseBuf = PacketByteBufs.create();
+        PacketByteBuf responseBuf =  new PacketByteBuf(Unpooled.buffer());
         responseBuf.writeBytes(InertiaAntiCheat.encryptRSABytes(BigInteger.valueOf(InertiaAntiCheatClient.allModData.size()).toByteArray(), publicKey));
         InertiaAntiCheat.debugInfo("Responding with mod size of " + InertiaAntiCheatClient.allModData.size());
         InertiaAntiCheat.debugLine();
@@ -77,7 +75,7 @@ public class ClientLoginModlistTransferHandler {
         if (this.currentIndex + 1 >= this.maxIndex && Objects.isNull(this.currentFile)) {
             throw new RuntimeException("Not expected to send anymore mods");
         }
-        PacketByteBuf responseBuf = PacketByteBufs.create();
+        PacketByteBuf responseBuf =  new PacketByteBuf(Unpooled.buffer());
 
         if (this.currentFile.length > MAX_SIZE) {
             InertiaAntiCheat.debugInfo("Sending part of next file");
