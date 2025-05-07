@@ -6,7 +6,6 @@ import me.diffusehyperion.inertiaanticheat.interfaces.ServerLoginNetworkHandlerI
 import me.diffusehyperion.inertiaanticheat.util.HashAlgorithm;
 import me.diffusehyperion.inertiaanticheat.util.InertiaAntiCheatConstants;
 import me.diffusehyperion.inertiaanticheat.util.ModlistCheckMethod;
-//import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.fabric.api.networking.v1.*;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -34,12 +33,13 @@ public class ServerLoginModlistTransferHandler {
 
         InertiaAntiCheat.debugLine();
         InertiaAntiCheat.debugInfo("Checking if " + upgradedHandler.inertiaAntiCheat$getGameProfile().getName() + " has bypass permissions");
-//        boolean allowed = Permissions.check(upgradedHandler.inertiaAntiCheat$getGameProfile(), "inertiaanticheat.bypass").join();
-//        if (allowed) {
-//            InertiaAntiCheat.debugInfo(upgradedHandler.inertiaAntiCheat$getGameProfile().getName() + " is allowed to bypass");
-//            InertiaAntiCheat.debugLine();
-//            return;
-//        }
+        boolean allowed = false;
+//        Permissions.check(upgradedHandler.inertiaAntiCheat$getGameProfile(), "inertiaanticheat.bypass").join();
+        if (allowed) {
+            InertiaAntiCheat.debugInfo(upgradedHandler.inertiaAntiCheat$getGameProfile().getName() + " is allowed to bypass");
+            InertiaAntiCheat.debugLine();
+            return;
+        }
         InertiaAntiCheat.debugInfo("Not allowed to bypass, sending request to address " + upgradedHandler.inertiaAntiCheat$getConnection().getRemoteAddress());
 
         KeyPair keyPair = InertiaAntiCheat.createRSAPair();
