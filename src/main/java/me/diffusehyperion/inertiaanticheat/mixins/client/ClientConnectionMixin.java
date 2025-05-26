@@ -1,7 +1,7 @@
 package me.diffusehyperion.inertiaanticheat.mixins.client;
 
 import me.diffusehyperion.inertiaanticheat.interfaces.ClientConnectionMixinInterface;
-import me.diffusehyperion.inertiaanticheat.packets.UpgradedClientQueryPacketListener;
+import me.diffusehyperion.inertiaanticheat.networking.packets.UpgradedClientQueryPacketListener;
 import net.minecraft.network.ClientboundPacketListener;
 import net.minecraft.network.Connection;
 import net.minecraft.network.ProtocolInfo;
@@ -21,5 +21,6 @@ public abstract class ClientConnectionMixin implements ClientConnectionMixinInte
     }
 
     @Shadow
-    private <S extends ServerboundPacketListener, C extends ClientboundPacketListener> void initiateServerboundConnection(String address, int port, ProtocolInfo<S> outboundState, ProtocolInfo<C> inboundState, C prePlayStateListener, ClientIntent intent) {}
+    private <S extends ServerboundPacketListener, C extends ClientboundPacketListener> void initiateServerboundConnection(String address, int port, ProtocolInfo<S> outboundState, ProtocolInfo<C> inboundState, C prePlayStateListener, ClientIntent intent) {
+    }
 }

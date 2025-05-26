@@ -1,7 +1,7 @@
-package me.diffusehyperion.inertiaanticheat.packets.S2C;
+package me.diffusehyperion.inertiaanticheat.networking.packets.S2C;
 
-import me.diffusehyperion.inertiaanticheat.packets.AnticheatPackets;
-import me.diffusehyperion.inertiaanticheat.packets.UpgradedClientQueryPacketListener;
+import me.diffusehyperion.inertiaanticheat.networking.packets.AnticheatPackets;
+import me.diffusehyperion.inertiaanticheat.networking.packets.UpgradedClientQueryPacketListener;
 import me.diffusehyperion.inertiaanticheat.util.AnticheatDetails;
 import me.diffusehyperion.inertiaanticheat.util.GroupAnticheatDetails;
 import me.diffusehyperion.inertiaanticheat.util.IndividualAnticheatDetails;
@@ -49,12 +49,12 @@ public record AnticheatDetailsS2CPacket(AnticheatDetails details) implements Pac
     }
 
     @Override
-    public void handle(UpgradedClientQueryPacketListener listener) {
-        listener.onReceiveAnticheatDetails(this);
-    }
-
-    @Override
     public PacketType<? extends Packet<UpgradedClientQueryPacketListener>> type() {
         return AnticheatPackets.DETAILS_RESPONSE;
+    }
+
+
+    public void handle(UpgradedClientQueryPacketListener listener) {
+        listener.onReceiveAnticheatDetails(this);
     }
 }

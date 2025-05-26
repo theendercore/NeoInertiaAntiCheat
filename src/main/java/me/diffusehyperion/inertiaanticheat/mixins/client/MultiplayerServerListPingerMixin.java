@@ -5,15 +5,14 @@ import com.llamalad7.mixinextras.sugar.Share;
 import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 import me.diffusehyperion.inertiaanticheat.interfaces.ClientConnectionMixinInterface;
 import me.diffusehyperion.inertiaanticheat.interfaces.ServerInfoInterface;
-import me.diffusehyperion.inertiaanticheat.packets.UpgradedClientQueryPacketListener;
+import me.diffusehyperion.inertiaanticheat.networking.packets.UpgradedClientQueryNetworkHandler;
+import me.diffusehyperion.inertiaanticheat.networking.packets.UpgradedClientQueryPacketListener;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.ServerStatusPinger;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.status.ClientStatusPacketListener;
-import me.diffusehyperion.inertiaanticheat.packets.UpgradedClientQueryNetworkHandler;
-import org.spongepowered.asm.mixin.Debug;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -26,9 +25,12 @@ import java.net.InetSocketAddress;
 @Mixin(ServerStatusPinger.class)
 public abstract class MultiplayerServerListPingerMixin {
     @Shadow
-    void onPingFailed(Component error, ServerData info) {}
+    void onPingFailed(Component error, ServerData info) {
+    }
+
     @Shadow
-    void pingLegacyServer(InetSocketAddress socketAddress, final ServerAddress address, final ServerData serverInfo) {}
+    void pingLegacyServer(InetSocketAddress socketAddress, final ServerAddress address, final ServerData serverInfo) {
+    }
 
     @Inject(method = "pingServer",
             at = @At(value = "HEAD"))
@@ -58,8 +60,8 @@ public abstract class MultiplayerServerListPingerMixin {
         UpgradedClientQueryPacketListener listener =
                 new UpgradedClientQueryNetworkHandler(serverInfo, saver, pingCallback,
                         connection, inetSocketAddress, serverAddress,
-                this::onPingFailed,
-                this::pingLegacyServer);
+                        this::onPingFailed,
+                        this::pingLegacyServer);
 
         ((ServerInfoInterface) serverInfo).inertiaAntiCheat$setInertiaInstalled(null);
         ((ServerInfoInterface) serverInfo).inertiaAntiCheat$setAnticheatDetails(null);

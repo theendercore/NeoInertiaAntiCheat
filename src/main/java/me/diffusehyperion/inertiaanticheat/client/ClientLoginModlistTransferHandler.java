@@ -2,126 +2,90 @@ package me.diffusehyperion.inertiaanticheat.client;
 
 import io.netty.buffer.Unpooled;
 import me.diffusehyperion.inertiaanticheat.InertiaAntiCheat;
-import me.diffusehyperion.inertiaanticheat.util.HashAlgorithm;
+import me.diffusehyperion.inertiaanticheat.networking.method.CheckingTypes;
+import me.diffusehyperion.inertiaanticheat.networking.method.TransferHandler;
+import me.diffusehyperion.inertiaanticheat.networking.method.data.ClientDataTransferHandler;
+import me.diffusehyperion.inertiaanticheat.networking.method.name.ClientNameTransferHandler;
 import me.diffusehyperion.inertiaanticheat.util.InertiaAntiCheatConstants;
 import net.fabricmc.fabric.api.client.networking.v1.ClientLoginConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientLoginNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientHandshakePacketListenerImpl;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.PacketSendListener;
-import net.minecraft.resources.ResourceLocation;
-import javax.crypto.SecretKey;
+import org.jetbrains.annotations.Nullable;
+
 import java.math.BigInteger;
+import java.security.KeyPair;
 import java.security.PublicKey;
-import java.util.Arrays;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public class ClientLoginModlistTransferHandler {
+    private PublicKey serverPublicKey;
+    private KeyPair clientKeyPair;
+
     public static void init() {
         InertiaAntiCheat.debugInfo("Creating mod transfer handler");
-        ClientLoginNetworking.registerGlobalReceiver(InertiaAntiCheatConstants.MOD_TRANSFER_START_ID, ClientLoginModlistTransferHandler::startModTransfer);
+        ClientLoginNetworking.registerGlobalReceiver(InertiaAntiCheatConstants.CHECK_CONNECTION, ClientLoginModlistTransferHandler::confirmConnection);
+
     }
 
-    private static CompletableFuture<FriendlyByteBuf> startModTransfer(Minecraft client, ClientHandshakePacketListenerImpl loginNetworkHandler, FriendlyByteBuf buf, Consumer<PacketSendListener> callbacksConsumer) {
+    /**
+     * Responds to any connection check packets
+     * This also creates an instance of this class and begins listening for key exchange requests.
+     */
+    private static CompletableFuture<@Nullable FriendlyByteBuf>
+    confirmConnection(Minecraft client, ClientHandshakePacketListenerImpl handler,
+                      FriendlyByteBuf buf, Consumer<PacketSendListener> callbacksConsumer) {
         InertiaAntiCheat.debugLine();
         InertiaAntiCheat.debugInfo("Received request to start mod transfer");
 
-        PublicKey publicKey = InertiaAntiCheat.retrievePublicKey(buf);
+        ClientLoginModlistTransferHandler transferHandler = new ClientLoginModlistTransferHandler();
+        ClientLoginNetworking.registerReceiver(InertiaAntiCheatConstants.INITIATE_E2EE, transferHandler::exchangeKey);
+        return CompletableFuture.completedFuture(PacketByteBufs.empty());
+    }
 
-        ClientLoginModlistTransferHandler handler = new ClientLoginModlistTransferHandler(publicKey, InertiaAntiCheatClient.allModData.size(), InertiaAntiCheatConstants.MOD_TRANSFER_CONTINUE_ID);
-        ClientLoginNetworking.registerReceiver(InertiaAntiCheatConstants.MOD_TRANSFER_CONTINUE_ID, handler::transferMod);
+    /**
+     * Responds to key exchange requests
+     * Saves server's public key and generates a client keypair to send
+     */
+    private CompletableFuture<@Nullable FriendlyByteBuf>
+    exchangeKey(Minecraft client, ClientHandshakePacketListenerImpl loginNetworkHandler,
+                FriendlyByteBuf buf, Consumer<PacketSendListener> callbacksConsumer) {
+        InertiaAntiCheat.debugInfo("Exchanging keys with server");
+
+        this.serverPublicKey = InertiaAntiCheat.retrievePublicKey(buf);
+
+        FriendlyByteBuf responseBuf = PacketByteBufs.create();
+        this.clientKeyPair = InertiaAntiCheat.createRSAPair();
+        responseBuf.writeBytes(this.clientKeyPair.getPublic().getEncoded());
+
+        ClientLoginNetworking.registerReceiver(InertiaAntiCheatConstants.SET_ADAPTOR, this::createAdaptors);
+        return CompletableFuture.completedFuture(responseBuf);
+    }
+
+    /**
+     * Responds to server's chosen adaptor and creates appropriate instances
+     *
+     */
+    private CompletableFuture<@Nullable FriendlyByteBuf>
+    createAdaptors(Minecraft client, ClientHandshakePacketListenerImpl loginNetworkHandler,
+                   FriendlyByteBuf buf, Consumer<PacketSendListener> callbacksConsumer) {
+
+        CheckingTypes transferAdaptorIndex = CheckingTypes.values()[buf.readInt()];
+
+        TransferHandler transferAdaptor = switch (transferAdaptorIndex) {
+            case DATA -> new ClientDataTransferHandler(this.serverPublicKey, InertiaAntiCheatConstants.SEND_MOD);
+            case NAME -> new ClientNameTransferHandler(this.serverPublicKey, InertiaAntiCheatConstants.SEND_MOD);
+        };
+
+        ClientLoginConnectionEvents.DISCONNECT.register(transferAdaptor::onDisconnect);
+
         InertiaAntiCheat.debugInfo("Registered new handler for channel");
-
-        FriendlyByteBuf responseBuf =  new FriendlyByteBuf(Unpooled.buffer());
-        responseBuf.writeBytes(InertiaAntiCheat.encryptRSABytes(BigInteger.valueOf(InertiaAntiCheatClient.allModData.size()).toByteArray(), publicKey));
-        InertiaAntiCheat.debugInfo("Responding with mod size of " + InertiaAntiCheatClient.allModData.size());
         InertiaAntiCheat.debugLine();
 
-        return CompletableFuture.completedFuture(responseBuf);
-    }
-
-    private final PublicKey publicKey;
-    private final SecretKey secretKey;
-    private final ResourceLocation modTransferID;
-
-    private final int maxIndex;
-    private int currentIndex = 0;
-    private final int MAX_SIZE = 1000000;
-    private byte[] currentFile;
-
-
-    public ClientLoginModlistTransferHandler(PublicKey publicKey, int maxIndex, ResourceLocation modTransferID) {
-        this.publicKey = publicKey;
-        this.secretKey = InertiaAntiCheat.createAESKey();
-        this.modTransferID = modTransferID;
-
-        this.maxIndex = maxIndex;
-        this.currentFile = InertiaAntiCheatClient.allModData.get(currentIndex);
-
-        ClientLoginConnectionEvents.DISCONNECT.register(this::onDisconnect);
-    }
-
-    private void onDisconnect(ClientHandshakePacketListenerImpl clientLoginNetworkHandler, Minecraft minecraftClient) {
-        ClientLoginNetworking.unregisterReceiver(this.modTransferID);
-    }
-
-
-    private CompletableFuture<FriendlyByteBuf> transferMod(Minecraft client, ClientHandshakePacketListenerImpl handler, FriendlyByteBuf buf, Consumer<PacketSendListener> callbacksConsumer) {
-        InertiaAntiCheat.debugInfo("Sending mod " + this.currentIndex);
-        if (this.currentIndex + 1 >= this.maxIndex && Objects.isNull(this.currentFile)) {
-            throw new RuntimeException("Not expected to send anymore mods");
-        }
-        FriendlyByteBuf responseBuf =  new FriendlyByteBuf(Unpooled.buffer());
-
-        if (this.currentFile.length > MAX_SIZE) {
-            InertiaAntiCheat.debugInfo("Sending part of next file");
-
-            byte[] chunk = Arrays.copyOf(this.currentFile, this.MAX_SIZE);
-            InertiaAntiCheat.debugInfo("Hash of chunk: " + InertiaAntiCheat.getHash(chunk, HashAlgorithm.MD5));
-
-            byte[] encryptedAESFileData = InertiaAntiCheat.encryptAESBytes(chunk, this.secretKey);
-            byte[] encryptedRSASecretKey = InertiaAntiCheat.encryptRSABytes(this.secretKey.getEncoded(), this.publicKey);
-            responseBuf.writeBoolean(false);
-            responseBuf.writeInt(encryptedRSASecretKey.length);
-            responseBuf.writeBytes(encryptedRSASecretKey);
-            responseBuf.writeBytes(encryptedAESFileData);
-
-            this.currentFile = Arrays.copyOfRange(this.currentFile, this.MAX_SIZE, this.currentFile.length);
-        } else {
-            InertiaAntiCheat.debugInfo("Sending entirety of next file");
-
-            InertiaAntiCheat.debugInfo("Hash of chunk: " + InertiaAntiCheat.getHash(this.currentFile, HashAlgorithm.MD5));
-
-            byte[] encryptedAESFileData = InertiaAntiCheat.encryptAESBytes(this.currentFile, this.secretKey);
-            byte[] encryptedRSASecretKey = InertiaAntiCheat.encryptRSABytes(this.secretKey.getEncoded(), this.publicKey);
-            responseBuf.writeBoolean(true);
-            responseBuf.writeInt(encryptedRSASecretKey.length);
-            responseBuf.writeBytes(encryptedRSASecretKey);
-            responseBuf.writeBytes(encryptedAESFileData);
-
-            this.currentFile = null;
-            if (this.currentIndex + 1 < this.maxIndex) {
-                loadNextFile();
-            } else {
-                ClientLoginNetworking.unregisterGlobalReceiver(this.modTransferID);
-            }
-        }
-        InertiaAntiCheat.debugLine();
-        return CompletableFuture.completedFuture(responseBuf);
-    }
-
-    private void loadNextFile() {
-        InertiaAntiCheat.debugLine2();
-        InertiaAntiCheat.debugInfo("Loading next file");
-
-        if (this.currentIndex + 1 >= this.maxIndex) {
-            throw new RuntimeException("No more mods to load");
-        }
-        this.currentIndex += 1;
-        this.currentFile = InertiaAntiCheatClient.allModData.get(currentIndex);
-        InertiaAntiCheat.debugLine2();
+        return CompletableFuture.completedFuture(PacketByteBufs.empty());
     }
 }

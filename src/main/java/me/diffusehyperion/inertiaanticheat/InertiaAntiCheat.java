@@ -8,6 +8,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLLoader;
 
 import javax.crypto.*;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -21,6 +22,7 @@ import java.util.Objects;
 import static me.diffusehyperion.inertiaanticheat.client.InertiaAntiCheatClient.clientConfig;
 import static me.diffusehyperion.inertiaanticheat.server.InertiaAntiCheatServer.serverConfig;
 import static me.diffusehyperion.inertiaanticheat.util.InertiaAntiCheatConstants.MODLOGGER;
+
 
 @Mod(InertiaAntiCheat.MODID)
 public class InertiaAntiCheat {
@@ -207,5 +209,16 @@ public class InertiaAntiCheat {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Something went wrong while generating new key pairs!", e);
         }
+    }
+
+    public static byte[] decryptAESRSAEncodedBuf(FriendlyByteBuf buf, PrivateKey privateKey) {
+        int encryptedSecretKeyLength = buf.readInt();
+        byte[] encryptedSecretKey = new byte[encryptedSecretKeyLength];
+        buf.readBytes(encryptedSecretKey);
+        SecretKey secretKey = new SecretKeySpec(InertiaAntiCheat.decryptRSABytes(encryptedSecretKey, privateKey), "AES");
+
+        byte[] encryptedData = new byte[buf.readableBytes()];
+        buf.readBytes(encryptedData);
+        return InertiaAntiCheat.decryptAESBytes(encryptedData, secretKey);
     }
 }

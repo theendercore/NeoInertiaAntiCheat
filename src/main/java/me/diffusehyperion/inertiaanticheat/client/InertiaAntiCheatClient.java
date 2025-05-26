@@ -17,16 +17,17 @@ import java.util.Objects;
 @Mod(value = InertiaAntiCheat.MODID, dist = Dist.CLIENT)
 public class InertiaAntiCheatClient {
     public static Toml clientConfig;
+    public static final List<String> allModNames = new ArrayList<>();
     public static final List<byte[]> allModData = new ArrayList<>();
 
     public InertiaAntiCheatClient() {
         InertiaAntiCheatClient.clientConfig = InertiaAntiCheat.initializeConfig("/config/client/InertiaAntiCheat.toml", InertiaAntiCheatConstants.CURRENT_CLIENT_CONFIG_VERSION);
 
-        this.setupModDataList();
+        this.setupModlist();
         ClientLoginModlistTransferHandler.init();
     }
 
-    public void setupModDataList() {
+    public void setupModlist() {
         try {
             File modDirectory = FMLLoader.getGamePath().resolve("mods").toFile();
             for (File modFile : Objects.requireNonNull(modDirectory.listFiles())) {
@@ -36,6 +37,7 @@ public class InertiaAntiCheatClient {
                 if (!modFile.getAbsolutePath().endsWith(".jar")) {
                     continue;
                 }
+                InertiaAntiCheatClient.allModNames.add(modFile.getName());
                 InertiaAntiCheatClient.allModData.add(Files.readAllBytes(modFile.toPath()));
             }
         } catch (IOException e) {
